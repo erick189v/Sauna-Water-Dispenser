@@ -20,7 +20,7 @@ This project automates a **sauna cooling system** using **Raspberry Pi Pico W**.
 ✅ **Web interface for manual control**  
 
 ## 📷 Project Demo  
-(Upload screenshots of your project working!)  
+
 
 ## 🛠️ How to Use  
 1. Clone the repository:
