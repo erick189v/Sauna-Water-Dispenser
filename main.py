@@ -17,7 +17,7 @@ DS_PIN = machine.Pin(22)  # DS18B20 Data Pin
 
 # **Initialize DS18B20**
 ds_sensor = ds18x20.DS18X20(onewire.OneWire(DS_PIN))
-roms = ds_sensor.scan()  
+roms = ds_sensor.scan()
 
 # **Temperature Threshold**
 TEMP_THRESHOLD = 70  # Adjust based on sauna needs
@@ -33,30 +33,32 @@ print("Connecting to Wi-Fi...")
 while not wlan.isconnected():
     time.sleep(1)
 
-print("✅ Connected! IP Address:", wlan.ifconfig()[0])
+print("Connected! IP Address:", wlan.ifconfig()[0])
 
 
+# **Temperature Control Loop (Runs in a Thread)**
 def temperature_control():
     while True:
-        if not roms:
-            print("⚠️ No DS18B20 sensor found! Check wiring.")
+        if len(roms) == 0:
+            print("No DS18B20 sensor found! Check wiring.")
         else:
             ds_sensor.convert_temp()
-            time.sleep(1)  # ✅ Allow time for conversion
+            time.sleep(1)  # Wait for conversion
 
             for rom in roms:
-                temp_c = ds_sensor.read_temp(rom)  # ✅ FIXED: Proper temperature reading
-                print(f"🌡️ Temperature: {temp_c:.2f}°C")
+                temp_c = ds_sensor.read_temp(rom)
+                print(f"Temperature: {temp_c:.2f}°C")
 
                 if temp_c < TEMP_THRESHOLD:
-                    print("⚠️ Temperature is LOW! Turning ON the pump.")
-                    RELAY_PIN.value(1)
-                    time.sleep(5)
-                    RELAY_PIN.value(0)
+                    print("Temperature is LOW! Turning ON the pump.")
+                    RELAY_PIN.value(1)  # Turn ON pump
+                    time.sleep(5)  # Keep ON for 5 seconds
+                    RELAY_PIN.value(0)  # Turn OFF pump
                 else:
-                    print("✅ Temperature is OK. Waiting 5 minutes.")
+                    print("Temperature is OK. Waiting for 5 minutes.")
 
-        time.sleep(5*60)  # Check every 5 minutes
+        time.sleep(5 * 60)  # Check every 5 minutes
+
 
 # **Start the Temperature Control in a Separate Thread**
 _thread.start_new_thread(temperature_control, ())
@@ -78,8 +80,8 @@ def web_page(temp):
     </style>
 </head>
 <body>
-    <h1>🔥 Sauna Temperature Control</h1>
-    <p class="status">🌡️ Current Temperature: <strong>{temp:.2f}°C</strong></p>
+    <h1>Sauna Temperature Control</h1>
+    <p class="status">Current Temperature: <strong>{temp:.2f}°C</strong></p>
     <form action="/pump_on" method="get">
         <button class="button">Activate Water Pump</button>
     </form>
@@ -93,29 +95,33 @@ server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.bind(("", 8081))
 server_socket.listen(5)
 
-print("🌐 Web Server Running at:", wlan.ifconfig()[0])
+print("Web Server Running...")
+
+#francis
+import network
+wlan = network.WLAN(network.STA_IF)
+print(wlan.ifconfig())
+
 
 while True:
     conn, addr = server_socket.accept()
     request = conn.recv(1024).decode()
-
-    if roms:
-        ds_sensor.convert_temp()  # ✅ Correct function
-        time.sleep(1)
-        temp_c = ds_sensor.read_temp(roms[0])  # ✅ Correct function
-    else:
-        temp_c = -99
-
+    
+    # Read temperature
+    ds_sensor.convert_temp()
+    time.sleep(1)
+    temp_c = ds_sensor.read_temp(roms[0]) if roms else -99  # Handle missing sensor
+    
     print("Request:", request)
 
-    # Handle Web Requests
+    # **Handle Web Requests**
     if "/pump_on" in request:
-        print("⚡ Manual Pump Activation!")
+        print("Manual Pump Activation!")
         RELAY_PIN.value(1)
-        time.sleep(5)
+        time.sleep(5)  # Pump ON for 5 seconds
         RELAY_PIN.value(0)
 
-    # Send HTTP response
+    # Send HTTP Response
     response = web_page(temp_c)
     conn.send("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n" + response)
     conn.close()
